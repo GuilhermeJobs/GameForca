@@ -2,6 +2,6 @@
 Usando a uma planilha do google como banco de dados para pegar as perguntas e respostas
 
 ## Jogo da forca por Guilherme Ferreira 
-![]([https://raw.githubusercontent.com/MateusMaciel340/aluraplay/main/assets/aluraplay.gif](https://raw.githubusercontent.com/GuilhermeJobs/GameForca/refs/heads/main/capa.png))
+![](https://raw.githubusercontent.com/GuilhermeJobs/GameForca/refs/heads/main/capa.png))
 
 https://guilhermejobs.github.io/GameForca/
