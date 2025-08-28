@@ -1,9 +1,7 @@
 # GameForca
-Jogo da forca por Guilherme Ferreira
+Usando a uma planilha do google como banco de dados para pegar as perguntas e respostas
 
-A base de dados é uma planilha do google
-
-## Imagem 
-![](https://raw.githubusercontent.com/MateusMaciel340/aluraplay/main/assets/aluraplay.gif)
+## Jogo da forca por Guilherme Ferreira 
+![]([https://raw.githubusercontent.com/MateusMaciel340/aluraplay/main/assets/aluraplay.gif](https://raw.githubusercontent.com/GuilhermeJobs/GameForca/refs/heads/main/capa.png))
 
 https://guilhermejobs.github.io/GameForca/
