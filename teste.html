@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Jogo da Forca – Planilha Google (corrigido)</title>
+  <style>
+    :root{--bg:#0f172a;--panel:#111827;--muted:#94a3b8;--text:#e5e7eb;--accent:#22d3ee;--danger:#ef4444;--shadow:0 10px 25px rgba(0,0,0,.35)}
+    *{box-sizing:border-box}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,Arial; background:radial-gradient(1200px 600px at 20% -10%,#1f2937,transparent),radial-gradient(1200px 600px at 120% 110%,#0b1324,transparent),var(--bg);color:var(--text);min-height:100svh;display:grid;place-items:center;padding:24px}
+    .app{width:min(1100px,100%);display:flex;flex-direction: column;grid-template-columns:1.1fr .9fr;gap:22px}
+    @media(max-width:900px){.app{grid-template-columns:1fr}}
+    .card{background:linear-gradient(180deg,rgba(255,255,255,.04),rgba(255,255,255,.02));border:1px solid rgba(255,255,255,.08);border-radius:18px;box-shadow:var(--shadow);padding:18px}
+    .title{display:flex;align-items:center;gap:10px;margin:0 0 10px;font-size:clamp(18px,2.2vw,24px);letter-spacing:.3px}
+    .title small{color:var(--muted);font-weight:400}
+    .hangman{display:grid;grid-template-rows:auto 1fr auto;gap:12px;height:100%}
+    .hangman__image-wrap{background:#ffffff;border:1px solid rgba(255,255,255,.06);border-radius:14px;display:grid;place-items:center;padding:10px;min-height:300px}
+    .hangman__image-wrap img {  max-width: 100%;  height: auto;   width: auto;  border-radius: 10px;   display: block; }
+    .stats{display:flex;gap:16px;flex-wrap:wrap;align-items:center}
+    .badge{background:rgba(34,211,238,.1);color:var(--accent);border:1px solid rgba(34,211,238,.25);padding:6px 10px;border-radius:999px;font-size:13px}
+    .question{font-size:clamp(16px,2.1vw,20px);line-height:1.4;color:#dbeafe;margin:6px 0 2px}
+    .mask{font-variant-numeric:tabular-nums;letter-spacing:.12em;font-size:clamp(20px,4.4vw,38px);font-weight:700;display:flex;flex-wrap:wrap;gap:10px 12px;padding:8px 0 2px}
+    .mask .slot{border-bottom:3px solid rgba(255,255,255,.16);min-width:22px;text-align:center;padding:4px 2px 2px}
+    .mask .slot.space{border-bottom-color:transparent;min-width:14px}
+    .kbd{display:grid;grid-template-columns:repeat(13,1fr);gap:8px;margin-top:14px}
+    @media(max-width:520px){.kbd{grid-template-columns:repeat(9,1fr)}}
+    button.key{background:#0f1a30;border:1px solid rgba(255,255,255,.08);color:var(--text);padding:10px 0;border-radius:10px;cursor:pointer;font-weight:600;letter-spacing:.5px;transition:transform .05s ease,background .2s ease,border-color .2s ease;user-select:none}
+    button.key:hover{background:#152344}button.key:active{transform:translateY(1px)}button.key[disabled]{opacity:.35;cursor:not-allowed}
+    .controls{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px}
+    .btn{padding:10px 14px;border-radius:12px;border:1px solid rgba(255,255,255,.12);background:#0b1324;color:var(--text);font-weight:700;letter-spacing:.3px;cursor:pointer;transition:background .2s ease}
+    .btn:hover{background:#13203b}.btn.danger{background:#2a1010;border-color:rgba(239,68,68,.5)}.btn.danger:hover{background:#3d1414}
+    .toast{font-size:14px;color:var(--muted);margin-top:6px}
+    .footer{color:var(--muted);font-size:12px;text-align:center;margin-top:10px}.footer a{color:var(--accent);text-decoration:none}
+  </style>
+</head>
+<body>
+  <main class="app">
+    <section class="card hangman">
+      <h1 class="title">🪢 Jogo da Forca <small> por Guilherme Ferreira</small></h1>
+      <div class="hangman__image-wrap"><img id="img-hangman" alt="Estado da forca" src="0erro.png" /></div>
+      <div class="stats">
+        <span class="badge">Erros: <strong id="err-count">0</strong>/6</span>
+        <span class="badge">Acertos: <strong id="hit-count">0</strong></span>
+        <span class="badge">Letras usadas: <strong id="used-letters">—</strong></span>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="title">❓ Pergunta</h2>
+      <div id="question" class="question">Carregando pergunta...</div>
+      <div id="mask" class="mask" aria-live="polite"></div>
+      <div class="controls">
+        <button id="btn-new" class="btn">🔄 Nova pergunta</button>
+        <button id="btn-reset" class="btn danger">🧹 Reiniciar</button>
+      </div>
+      <div class="toast" id="toast">Dica: você pode usar o teclado físico.</div>
+      <div id="keyboard" class="kbd" aria-label="Teclado de letras"></div>
+    </section>
+  </main>
+
+  <script>
+    // -----------------------------
+    // Config
+    // -----------------------------
+    const SHEET_ID = '1xp_RqzDU4h9aCdU3oSwzaVcqMlyzU_bDCjywTpOraU4';
+    const SHEET_NAME = 'pag1';
+    const GVIZ_URL = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/gviz/tq?tqx=out:json&sheet=${encodeURIComponent(SHEET_NAME)}`;
+
+    // Normaliza string (remove diacríticos e transforma em maiúsculas)
+    const norm = (s) => (s || '').toString().normalize('NFD').replace(/\p{Diacritic}+/gu, '').toUpperCase();
+
+    // Letras do teclado (inclui Ç para o teclado visual)
+    const LETTERS = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), 'Ç'];
+
+    // -----------------------------
+    // Estado
+    // -----------------------------
+    let question = '';
+    let answerRaw = '';
+    let answerCmp = '';
+    let mask = [];
+    let used = new Set(); // guarda letras NORMALIZADAS
+    let errors = 0;
+    let hits = 0;
+
+    // Elements
+    const el = {
+      img: document.getElementById('img-hangman'),
+      errCount: document.getElementById('err-count'),
+      hitCount: document.getElementById('hit-count'),
+      usedLetters: document.getElementById('used-letters'),
+      question: document.getElementById('question'),
+      mask: document.getElementById('mask'),
+      keyboard: document.getElementById('keyboard'),
+      btnNew: document.getElementById('btn-new'),
+      btnReset: document.getElementById('btn-reset'),
+      toast: document.getElementById('toast')
+    };
+
+    // -----------------------------
+    // Teclado virtual
+    // -----------------------------
+    function renderKeyboard(){
+      el.keyboard.innerHTML = '';
+      LETTERS.forEach(ch =>{
+        const b = document.createElement('button');
+        b.className = 'key';
+        b.textContent = ch;
+        b.dataset.key = ch; // letra visível
+        b.dataset.keyNorm = norm(ch); // letra normalizada (para comparações)
+        b.addEventListener('click', ()=> tryLetter(ch));
+        el.keyboard.appendChild(b);
+      });
+    }
+
+    function syncKeyboard(){
+      const buttons = [...el.keyboard.querySelectorAll('button.key')];
+      buttons.forEach(btn => {
+        const kn = btn.dataset.keyNorm || norm(btn.dataset.key);
+        btn.disabled = used.has(kn);
+      });
+      // Mostrar as letras usadas no formato visual (original do botão)
+      const usedOriginal = buttons.filter(b => used.has(b.dataset.keyNorm)).map(b => b.dataset.key);
+      el.usedLetters.textContent = usedOriginal.length ? usedOriginal.join(', ') : '—';
+    }
+
+    function lockKeyboard(disabled){
+      el.keyboard.querySelectorAll('button.key').forEach(b => b.disabled = Boolean(disabled) || used.has(b.dataset.keyNorm));
+    }
+
+    // -----------------------------
+    // UI: máscara, imagem e status
+    // -----------------------------
+    function syncImage(){ el.img.src = `${errors}erro.png`; el.errCount.textContent = errors; el.hitCount.textContent = hits; }
+
+    function renderMask(){
+      el.mask.innerHTML = '';
+      for(let i=0;i<mask.length;i++){
+        const span = document.createElement('span');
+        const original = answerRaw[i] || '';
+        if(original === ' '){ span.className = 'slot space'; span.textContent = '\u00A0'; }
+        else{ span.className = 'slot'; span.textContent = mask[i] || ''; }
+        el.mask.appendChild(span);
+      }
+    }
+
+    // -----------------------------
+    // Lógica do jogo
+    // -----------------------------
+    function checkEnd(){
+      if(errors >= 6){
+        lockKeyboard(true);
+        el.toast.textContent = `💀 Fim de jogo! A resposta era: "${answerRaw}".`;
+        el.img.src = `${errors}erro.png`;
+        return true;
+      }
+      const current = mask.join('');
+      const cmpCurr = norm(current).replace(/\s+/g,'');
+      const cmpAns = norm(answerRaw).replace(/\s+/g,'');
+      if(cmpCurr === cmpAns){
+        lockKeyboard(true);
+        el.toast.textContent = '🎉 Parabéns! Você acertou!';
+        el.img.src = 'sucesso.png';
+        return true;
+      }
+      return false;
+    }
+
+    function tryLetter(input){
+      const letterNorm = norm(input).slice(0,1);
+      if(!letterNorm || used.has(letterNorm)) return;
+      used.add(letterNorm);
+
+      let found = 0;
+      for(let i=0;i<answerRaw.length;i++){
+        const ansChar = answerRaw[i];
+        if(ansChar === ' ') continue;
+        if(norm(ansChar).slice(0,1) === letterNorm && !mask[i]){
+          // mostra a letra tal como está na planilha (mantendo acento)
+          mask[i] = ansChar.toUpperCase();
+          found++;
+        }
+      }
+
+      if(found > 0) hits += found; else errors++;
+      syncKeyboard(); syncImage(); renderMask(); checkEnd();
+    }
+
+    // Captura teclado físico (aceita letras acentuadas)
+    window.addEventListener('keydown', (e) => {
+      if(e.repeat) return;
+      const key = e.key.toString();
+      // aceita letras (A-Z) e caracteres com acento/cedilha
+      if(/^\p{L}$/u.test(key)){
+        tryLetter(key);
+      }
+    });
+
+    // Reinicia rodada atual (mesma pergunta)
+    function resetRound(){
+      used.clear(); errors = 0; hits = 0;
+      mask = answerRaw.split('').map(ch => ch === ' ' ? ' ' : '');
+      syncKeyboard(); syncImage(); renderMask(); el.toast.textContent = 'Nova tentativa iniciada. Boa sorte!'; lockKeyboard(false);
+    }
+
+    // -----------------------------
+    // Parser robusto para resposta do GViz
+    // -----------------------------
+    // Observação: a resposta do Google costuma vir envolta em um wrapper JS como:
+    //   /*O_o*/\ngoogle.visualization.Query.setResponse({...});
+    // O objetivo abaixo é extrair o primeiro objeto JSON {...} contido na resposta
+    // de forma robusta (ignora comentários / novas linhas antes do JSON).
+    function parseGvizResponse(text){
+      if(!text || typeof text !== 'string') throw new Error('Resposta vazia do GViz');
+
+      // Tenta extrair o primeiro bloco JSON que começa com '{' e termina no correspondente '}'
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if(firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace){
+        const candidate = text.slice(firstBrace, lastBrace + 1);
+        try{
+          return JSON.parse(candidate);
+        }catch(err){
+          // se falhar, continua para outras estratégias de limpeza
+          console.warn('Falha ao parsear usando blocos de chaves — tentando limpeza adicional', err);
+        }
+      }
+
+      // Fallback: tenta remover tudo antes de "setResponse(" (incluindo novas linhas)
+      // e depois remover o ");" final. Usa [\s\S] para casar novas linhas.
+      const cleaned = text.replace(/[\s\S]*?setResponse\(/, '').replace(/\);?\s*$/,'');
+      try{ return JSON.parse(cleaned); }
+      catch(e){
+        // Por fim, jogamos o texto no console para depuração e retornamos erro claro
+        console.error('Resposta GViz (para depuração):', text.substring(0,800));
+        throw new Error('Não foi possível interpretar a resposta da planilha (formato inesperado). Verifique se a planilha está pública e se o endpoint retornou JSON válido.');
+      }
+    }
+
+    // -----------------------------
+    // Carrega pergunta da planilha
+    // -----------------------------
+    async function loadNewQuestion(){
+      el.toast.textContent = 'Carregando pergunta da planilha...';
+      lockKeyboard(true);
+      try{
+        const res = await fetch(GVIZ_URL, { cache: 'no-cache' });
+        if(!res.ok) throw new Error(`Erro ao buscar a planilha: ${res.status} ${res.statusText}`);
+        const text = await res.text();
+
+        const json = parseGvizResponse(text);
+        const rows = (json.table?.rows || []).map(r => r.c?.map(c => (c ? String(c.v ?? '').trim() : '')));
+        const valid = rows.filter(r => (r?.[0] || '') && (r?.[1] || ''));
+        if(!valid.length) throw new Error('Planilha sem linhas válidas (verifique a aba e o compartilhamento).');
+
+        const rnd = valid[Math.floor(Math.random() * valid.length)];
+        question = rnd[0];
+        answerRaw = (rnd[1] || '').toString();
+        answerCmp = norm(answerRaw);
+
+        // valida quantidade de letras (opcional)
+        const qtdPlan = parseInt(rnd[2] || '0', 10);
+        const qtdReal = answerCmp.replace(/\s+/g,'').length;
+        if(Number.isFinite(qtdPlan) && qtdPlan > 0 && qtdPlan !== qtdReal) console.warn('Quantidade divergente:',qtdPlan,'vs',qtdReal);
+
+        // atualiza UI
+        el.question.textContent = question;
+        el.toast.textContent = 'Pergunta carregada. Boa sorte!';
+
+        used.clear(); errors = 0; hits = 0;
+        mask = answerRaw.split('').map(ch => ch === ' ' ? ' ' : '');
+        renderMask(); syncImage(); renderKeyboard(); syncKeyboard(); lockKeyboard(false);
+
+      }catch(err){
+        console.error(err);
+        el.question.textContent = 'Não foi possível carregar a pergunta. Verifique as permissões da planilha.';
+        el.toast.textContent = 'Dica: Compartilhe a planilha como "Qualquer pessoa com o link: Leitor".';
+      }
+    }
+
+    // -----------------------------
+    // Inicialização
+    // -----------------------------
+    renderKeyboard(); syncKeyboard(); syncImage(); loadNewQuestion();
+
+    // Botões
+    el.btnNew.addEventListener('click', loadNewQuestion);
+    el.btnReset.addEventListener('click', resetRound);
+  </script>
+</body>
+</html>
